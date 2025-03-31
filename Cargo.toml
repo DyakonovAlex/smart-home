@@ -1,0 +1,3 @@
+[workspace]
+members = ["smart-home-lib"]
+resolver = "2"
