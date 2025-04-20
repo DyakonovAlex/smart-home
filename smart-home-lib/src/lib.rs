@@ -1,13 +1,17 @@
 //! # Smart Home Library
 
-pub mod devices;
+pub mod device;
 pub mod house;
 pub mod room;
+pub mod traits;
 
 pub mod prelude {
     pub use super::{
-        devices::{SmartDevice, SmartSocket, SmartTherm},
+        device::{SmartDevice, SmartSocket, SmartTherm},
+        house,
         house::SmartHouse,
+        room,
         room::Room,
+        traits::Reporter,
     };
 }

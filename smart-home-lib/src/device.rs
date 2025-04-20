@@ -1,5 +1,6 @@
 //! Модуль устройств умного дома
 
+use crate::traits::Reporter;
 use std::fmt;
 
 mod smart_socket;
@@ -15,19 +16,30 @@ pub enum SmartDevice {
     Therm(SmartTherm),
 }
 
-impl SmartDevice {
-    /// Возвращает текстовый отчет о состоянии устройства
-    pub fn status_report(&self) -> String {
+impl Reporter for SmartDevice {
+    fn report(&self) -> String {
         match self {
-            Self::Socket(s) => s.status_report(),
-            Self::Therm(t) => t.status_report(),
+            Self::Socket(s) => s.report(),
+            Self::Therm(t) => t.report(),
         }
     }
 }
 
 impl fmt::Display for SmartDevice {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.status_report())
+        write!(f, "{}", self.report())
+    }
+}
+
+impl From<SmartSocket> for SmartDevice {
+    fn from(socket: SmartSocket) -> Self {
+        Self::Socket(socket)
+    }
+}
+
+impl From<SmartTherm> for SmartDevice {
+    fn from(therm: SmartTherm) -> Self {
+        Self::Therm(therm)
     }
 }
 
@@ -44,8 +56,8 @@ mod tests {
             s.turn_on();
         }
 
-        assert!(socket.status_report().contains("1500.0W"));
-        assert!(therm.status_report().contains("22.5°C"));
+        assert!(socket.report().contains("1500.0W"));
+        assert!(therm.report().contains("22.5°C"));
     }
 
     #[test]
@@ -58,5 +70,20 @@ mod tests {
 
         let output = format!("{}", therm);
         assert!(output.starts_with("Smart Thermometer"));
+    }
+
+    #[test]
+    fn test_device_from() {
+        let socket = SmartSocket::new(1500.0);
+        let therm = SmartTherm::new(22.5);
+
+        let socket_device: SmartDevice = socket.into();
+        let therm_device: SmartDevice = therm.into();
+
+        assert!(matches!(socket_device, SmartDevice::Socket(_)));
+        assert!(matches!(therm_device, SmartDevice::Therm(_)));
+
+        assert!(socket_device.report().contains("1500.0W"));
+        assert!(therm_device.report().contains("22.5°C"));
     }
 }

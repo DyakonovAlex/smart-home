@@ -1,5 +1,6 @@
 //! Умный термометр
 
+use super::Reporter;
 use std::fmt;
 
 /// Умный термометр
@@ -23,16 +24,17 @@ impl SmartTherm {
     pub fn set_temperature(&mut self, temperature: f64) {
         self.temperature = temperature;
     }
+}
 
-    /// Формирует текстовый отчет о состоянии термометра
-    pub fn status_report(&self) -> String {
+impl Reporter for SmartTherm {
+    fn report(&self) -> String {
         format!("Smart Thermometer: {:.1}°C", self.temperature)
     }
 }
 
 impl fmt::Display for SmartTherm {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.status_report())
+        write!(f, "{}", self.report())
     }
 }
 
@@ -57,11 +59,11 @@ mod tests {
     }
 
     #[test]
-    fn test_status_report() {
+    fn test_report() {
         let mut therm = SmartTherm::new(23.7);
-        assert!(therm.status_report().contains("23.7°C"));
+        assert!(therm.report().contains("23.7°C"));
 
         therm.set_temperature(-5.2);
-        assert!(therm.status_report().contains("-5.2°C"));
+        assert!(therm.report().contains("-5.2°C"));
     }
 }

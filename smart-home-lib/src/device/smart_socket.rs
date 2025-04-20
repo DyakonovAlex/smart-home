@@ -1,5 +1,6 @@
 //! Умная розетка с возможностью управления и мониторинга
 
+use super::Reporter;
 use std::fmt;
 
 /// Умная розетка с измерением потребляемой мощности
@@ -46,9 +47,10 @@ impl SmartSocket {
     pub fn power_rating(&self) -> f64 {
         self.power_rating
     }
+}
 
-    /// Формирует текстовый отчет о состоянии розетки
-    pub fn status_report(&self) -> String {
+impl Reporter for SmartSocket {
+    fn report(&self) -> String {
         format!(
             "Smart Socket: {} | Power: {:.1}W (Rated: {:.1}W)",
             if self.is_active { "ACTIVE" } else { "INACTIVE" },
@@ -60,7 +62,7 @@ impl SmartSocket {
 
 impl fmt::Display for SmartSocket {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.status_report())
+        write!(f, "{}", self.report())
     }
 }
 
@@ -90,12 +92,12 @@ mod tests {
     }
 
     #[test]
-    fn test_status_report() {
+    fn test_report() {
         let mut socket = SmartSocket::new(1500.0);
-        assert!(socket.status_report().contains("INACTIVE"));
+        assert!(socket.report().contains("INACTIVE"));
 
         socket.turn_on();
-        assert!(socket.status_report().contains("ACTIVE"));
-        assert!(socket.status_report().contains("1500.0W"));
+        assert!(socket.report().contains("ACTIVE"));
+        assert!(socket.report().contains("1500.0W"));
     }
 }

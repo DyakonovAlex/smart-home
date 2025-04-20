@@ -31,21 +31,66 @@ smart-home-lib = { path = "../smart-home-lib" }
 
 ```rust
 use smart_home_lib::prelude::*;
+use std::error::Error;
 
-fn main() {
-    let mut house = SmartHouse::new(vec![
-        Room::new(vec![
-            SmartDevice::Therm(SmartTherm::new(22.5)),
-            SmartDevice::Socket(SmartSocket::new(1500.0)),
-        ])
-    ]);
+// Функция для вывода отчета от любого объекта, реализующего Reporter
+fn print_report(reporter: &impl Reporter) {
+    println!("{}", reporter);
+}
 
-    println!("Initial report:\n{}", house.report().join("\n"));
+fn main() -> Result<(), Box<dyn Error>> {
+    // Создание дома с использованием макросов
+    let mut house = house![
+        (
+            "kitchen",
+            room![
+                ("therm", SmartDevice::Therm(SmartTherm::new(22.5))),
+                ("socket", SmartDevice::Socket(SmartSocket::new(1500.0)))
+            ]
+        ),
+        (
+            "living_room",
+            room![
+                ("socket", SmartDevice::Socket(SmartSocket::new(2000.0)))
+            ]
+        )
+    ];
+
+    // Вывод начального отчета
+    println!("Initial report:");
+    print_report(&house);
     
-    house.get_room_mut(0).get_device_mut(1).turn_on();
-    println!("Updated report:\n{}", house.report().join("\n"));
+    // Включение розетки в кухне
+    if let Ok(device) = house.get_device_mut("kitchen", "socket") {
+        if let SmartDevice::Socket(socket) = device {
+            socket.turn_on();
+            println!("\nKitchen socket turned on");
+        }
+    }
+    
+    // Динамическое добавление новой комнаты
+    house.add_room("bedroom", room![
+        ("lamp", SmartDevice::Socket(SmartSocket::new(60.0)))
+    ]);
+    
+    // Вывод обновленного отчета
+    println!("\nUpdated report:");
+    print_report(&house);
+    
+    Ok(())
 }
 ```
+
+Пример демонстрирует основные возможности библиотеки:
+
+- 🧩 Создание структуры умного дома с помощью макросов
+- 🔑 Доступ к устройствам по ключам
+- 🔌 Управление состоянием устройств
+- 📝 Генерация отчетов через универсальный интерфейс
+- ➕ Динамическое добавление комнат и устройств
+- ⚠️ Безопасную обработку ошибок
+
+Более подробные примеры использования можно найти в директории `examples/`.
 
 ## Разработка
 
