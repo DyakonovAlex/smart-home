@@ -1,14 +1,14 @@
 //! Умная розетка с возможностью управления и мониторинга
 
 use super::Reporter;
+use crate::units::Watts;
 use std::fmt;
 
-/// Умная розетка с измерением потребляемой мощности
 #[derive(Debug, Clone, PartialEq)]
 pub struct SmartSocket {
     is_active: bool,
-    power_rating: f64,  // Номинальная мощность в ваттах
-    current_power: f64, // Текущая потребляемая мощность в ваттах
+    power_rating: Watts,  // Номинальная мощность в ваттах
+    current_power: Watts, // Текущая потребляемая мощность в ваттах
 }
 
 impl SmartSocket {
@@ -16,8 +16,8 @@ impl SmartSocket {
     pub fn new(power_rating: f64) -> Self {
         Self {
             is_active: false,
-            power_rating,
-            current_power: 0.0,
+            power_rating: Watts::new(power_rating),
+            current_power: Watts::new(0.0),
         }
     }
 
@@ -30,7 +30,7 @@ impl SmartSocket {
     /// Выключает розетку и останавливает потребление энергии
     pub fn turn_off(&mut self) {
         self.is_active = false;
-        self.current_power = 0.0;
+        self.current_power = Watts::new(0.0);
     }
 
     /// Возвращает текущее состояние розетки (включена / выключена)
@@ -39,20 +39,25 @@ impl SmartSocket {
     }
 
     /// Возвращает текущую потребляемую мощность в ваттах
-    pub fn current_power(&self) -> f64 {
+    pub fn current_power(&self) -> Watts {
         self.current_power
     }
 
     /// Возвращает номинальную мощность в ваттах
-    pub fn power_rating(&self) -> f64 {
+    pub fn power_rating(&self) -> Watts {
         self.power_rating
+    }
+
+    /// Устанавливает текущую потребляемую мощность в ваттах
+    pub fn set_current_power(&mut self, power: Watts) {
+        self.current_power = power;
     }
 }
 
 impl Reporter for SmartSocket {
     fn report(&self) -> String {
         format!(
-            "Smart Socket: {} | Power: {:.1}W (Rated: {:.1}W)",
+            "Smart Socket: {} | Power: {} (Rated: {})",
             if self.is_active { "ACTIVE" } else { "INACTIVE" },
             self.current_power,
             self.power_rating
@@ -69,35 +74,41 @@ impl fmt::Display for SmartSocket {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use approx::assert_relative_eq;
 
     #[test]
-    fn test_socket_creation() {
+    fn socket_creation() {
         let socket = SmartSocket::new(1500.0);
         assert!(!socket.is_active());
-        assert_relative_eq!(socket.current_power(), 0.0);
+        assert_eq!(socket.current_power(), Watts::new(0.0));
     }
 
     #[test]
-    fn test_power_management() {
+    fn power_management() {
         let mut socket = SmartSocket::new(2000.0);
 
         socket.turn_on();
         assert!(socket.is_active());
-        assert_relative_eq!(socket.current_power(), 2000.0);
+        assert_eq!(socket.current_power(), Watts::new(2000.0));
 
         socket.turn_off();
         assert!(!socket.is_active());
-        assert_relative_eq!(socket.current_power(), 0.0);
+        assert_eq!(socket.current_power(), Watts::new(0.0));
     }
 
     #[test]
-    fn test_report() {
+    fn report() {
         let mut socket = SmartSocket::new(1500.0);
         assert!(socket.report().contains("INACTIVE"));
 
         socket.turn_on();
         assert!(socket.report().contains("ACTIVE"));
         assert!(socket.report().contains("1500.0W"));
+    }
+
+    #[test]
+    fn set_current_power() {
+        let mut socket = SmartSocket::new(1500.0);
+        socket.set_current_power(Watts::new(1000.0));
+        assert_eq!(socket.current_power(), Watts::new(1000.0));
     }
 }

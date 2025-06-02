@@ -1,6 +1,7 @@
 //! Модуль для работы с комнатами умного дома
 
-use crate::device::SmartDevice;
+use crate::controllers::DeviceController;
+use crate::devices::Device;
 use crate::traits::Reporter;
 use std::collections::HashMap;
 use std::fmt;
@@ -11,49 +12,89 @@ macro_rules! room {
     ($(($key:expr, $device:expr)),* $(,)?) => {{
         let mut room = Room::default();
         $(
-            room.add_device($key, $device);
+            room.add_item($key, $device);
         )*
         room
     }};
 }
 
 /// Комната умного дома, содержащая список устройств
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Room {
-    devices: HashMap<String, SmartDevice>,
+    devices: HashMap<String, Device>,
+    controllers: HashMap<String, DeviceController>,
 }
 
 impl Room {
-    /// Создает новую комнату с заданными устройствами
-    pub fn new(devices: HashMap<String, SmartDevice>) -> Self {
-        Self { devices }
+    /// Создает новую комнату
+    pub fn new() -> Self {
+        Self::default()
     }
 
     /// Возвращает неизменяемую ссылку на устройство по ключу
-    pub fn get_device(&self, key: &str) -> Option<&SmartDevice> {
+    pub fn device(&self, key: &str) -> Option<&Device> {
         self.devices.get(key)
     }
 
     /// Возвращает изменяемую ссылку на устройство по ключу
-    pub fn get_device_mut(&mut self, key: &str) -> Option<&mut SmartDevice> {
+    pub fn device_mut(&mut self, key: &str) -> Option<&mut Device> {
         self.devices.get_mut(key)
     }
 
     /// Добавляет устройство в комнату
-    pub fn add_device(&mut self, key: &str, device: SmartDevice) {
+    pub fn add_device(&mut self, key: &str, device: Device) {
         self.devices.insert(key.to_string(), device);
     }
 
-    pub fn remove_device(&mut self, key: &str) -> Option<SmartDevice> {
+    /// Удаляет устройство из комнаты
+    pub fn remove_device(&mut self, key: &str) -> Option<Device> {
         self.devices.remove(key)
     }
 
-    /// Формирует текстовый отчет о состоянии всех устройств в комнате
+    /// Возвращает неизменяемую ссылку на контроллер по ключу
+    pub fn controller(&self, key: &str) -> Option<&DeviceController> {
+        self.controllers.get(key)
+    }
+
+    /// Возвращает изменяемую ссылку на контроллер по ключу
+    pub fn controller_mut(&mut self, key: &str) -> Option<&mut DeviceController> {
+        self.controllers.get_mut(key)
+    }
+
+    /// Добавляет контроллер в комнату
+    pub fn add_controller(&mut self, key: &str, controller: DeviceController) {
+        self.controllers.insert(key.to_string(), controller);
+    }
+
+    /// Удаляет контроллер из комнаты
+    pub fn remove_controller(&mut self, key: &str) -> Option<DeviceController> {
+        self.controllers.remove(key)
+    }
+
+    /// Универсальный метод для добавления любого элемента в комнату
+    pub fn add_item<T>(&mut self, key: &str, item: T)
+    where
+        T: Into<RoomItem>,
+    {
+        match item.into() {
+            RoomItem::Device(device) => self.add_device(key, device),
+            RoomItem::Controller(controller) => self.add_controller(key, controller),
+        }
+    }
+
+    /// Формирует текстовый отчет о состоянии всех устройств и контроллеров в комнате
     pub fn report_lines(&self) -> Vec<String> {
-        self.devices
-            .iter()
-            .map(|(key, device)| format!("[Device:{}] {}", key, device))
-            .collect()
+        let mut lines = Vec::new();
+
+        for (key, device) in &self.devices {
+            lines.push(format!("[Device:{}] {}", key, device));
+        }
+
+        for (key, controller) in &self.controllers {
+            lines.push(format!("[Controller:{}] {}", key, controller));
+        }
+
+        lines
     }
 
     /// Возвращает количество устройств в комнате
@@ -64,6 +105,47 @@ impl Room {
     /// Возвращает список ключей всех устройств в комнате
     pub fn devices_keys(&self) -> Vec<String> {
         self.devices.keys().cloned().collect()
+    }
+
+    /// Возвращает количество контроллеров в комнате
+    pub fn controllers_count(&self) -> usize {
+        self.controllers.len()
+    }
+
+    /// Возвращает список ключей всех контроллеров в комнате
+    pub fn controllers_keys(&self) -> Vec<String> {
+        self.controllers.keys().cloned().collect()
+    }
+
+    /// Возвращает общее количество устройств и контроллеров в комнате
+    pub fn items_count(&self) -> usize {
+        self.devices_count() + self.controllers_count()
+    }
+
+    /// Возвращает список ключей всех устройств и контроллеров в комнате
+    pub fn keys(&self) -> Vec<String> {
+        let mut keys = Vec::new();
+        keys.extend(self.devices.keys().cloned());
+        keys.extend(self.controllers.keys().cloned());
+        keys
+    }
+}
+
+/// Универсальный элемент комнаты
+pub enum RoomItem {
+    Device(Device),
+    Controller(DeviceController),
+}
+
+impl From<Device> for RoomItem {
+    fn from(device: Device) -> Self {
+        Self::Device(device)
+    }
+}
+
+impl From<DeviceController> for RoomItem {
+    fn from(controller: DeviceController) -> Self {
+        Self::Controller(controller)
     }
 }
 
@@ -81,70 +163,61 @@ impl fmt::Display for Room {
 
 #[cfg(test)]
 mod tests {
-    use crate::device;
+    use crate::devices::{Device, SmartSocket, SmartTherm};
 
     use super::*;
 
     fn test_room() -> Room {
         crate::room![
-            (
-                "kitchen_therm",
-                SmartDevice::Therm(device::SmartTherm::new(22.5))
-            ),
-            (
-                "living_socket",
-                SmartDevice::Socket(device::SmartSocket::new(1500.0))
-            ),
+            ("kitchen_therm", Device::Therm(SmartTherm::new(22.5))),
+            ("living_socket", Device::Socket(SmartSocket::new(1500.0))),
         ]
     }
 
     #[test]
-    fn test_device_access() {
+    fn device_access() {
         let mut room = test_room();
 
-        let therm = room.get_device("kitchen_therm");
-        assert!(matches!(therm, Some(SmartDevice::Therm(_))));
+        let therm = room.device("kitchen_therm");
+        assert!(matches!(therm, Some(Device::Therm(_))));
 
-        if let Some(SmartDevice::Socket(s)) = room.get_device_mut("living_socket") {
+        if let Some(Device::Socket(s)) = room.device_mut("living_socket") {
             s.turn_on();
             assert!(s.is_active());
         }
 
         // Проверяем доступ к несуществующему устройству
-        assert!(room.get_device("not_exists").is_none());
+        assert!(room.device("not_exists").is_none());
     }
 
     #[test]
-    fn test_add_remove_device() {
+    fn add_remove_device() {
         let mut room = Room::default();
 
         // Добавляем устройство
-        room.add_device(
-            "bedroom_therm",
-            SmartDevice::Therm(device::SmartTherm::new(20.0)),
-        );
+        room.add_device("bedroom_therm", Device::Therm(SmartTherm::new(20.0)));
         assert_eq!(room.devices_count(), 1);
 
         // Проверяем что устройство добавлено
         assert!(matches!(
-            room.get_device("bedroom_therm"),
-            Some(SmartDevice::Therm(_))
+            room.device("bedroom_therm"),
+            Some(Device::Therm(_))
         ));
 
         // Удаляем устройство
         let removed = room.remove_device("bedroom_therm");
-        assert!(matches!(removed, Some(SmartDevice::Therm(_))));
+        assert!(matches!(removed, Some(Device::Therm(_))));
         assert_eq!(room.devices_count(), 0);
 
         // Проверяем что устройство удалено
-        assert!(room.get_device("bedroom_therm").is_none());
+        assert!(room.device("bedroom_therm").is_none());
     }
 
     #[test]
-    fn test_report_lines() {
+    fn report_lines() {
         let mut room = test_room();
 
-        if let Some(SmartDevice::Socket(s)) = room.get_device_mut("living_socket") {
+        if let Some(Device::Socket(s)) = room.device_mut("living_socket") {
             s.turn_on();
         }
 
@@ -164,10 +237,10 @@ mod tests {
     }
 
     #[test]
-    fn test_report() {
+    fn report() {
         let mut room = test_room();
 
-        if let Some(SmartDevice::Socket(s)) = room.get_device_mut("living_socket") {
+        if let Some(Device::Socket(s)) = room.device_mut("living_socket") {
             s.turn_on();
         }
 
@@ -184,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
+    fn display() {
         let room = test_room();
         let display_output = format!("{}", room);
 
@@ -196,23 +269,20 @@ mod tests {
     }
 
     #[test]
-    fn test_devices_count() {
+    fn devices_count() {
         let room = test_room();
         assert_eq!(room.devices_count(), 2);
     }
 
     #[test]
-    fn test_macro() {
+    fn macros() {
         let room = crate::room![
-            (
-                "socket1",
-                SmartDevice::Socket(device::SmartSocket::new(1000.0))
-            ),
-            ("therm1", SmartDevice::Therm(device::SmartTherm::new(18.0))),
+            ("socket1", Device::Socket(SmartSocket::new(1000.0))),
+            ("therm1", Device::Therm(SmartTherm::new(18.0))),
         ];
 
         assert_eq!(room.devices_count(), 2);
-        assert!(room.get_device("socket1").is_some());
-        assert!(room.get_device("therm1").is_some());
+        assert!(room.device("socket1").is_some());
+        assert!(room.device("therm1").is_some());
     }
 }

@@ -11,12 +11,12 @@ pub use smart_therm::SmartTherm;
 
 /// Универсальный тип для устройств умного дома
 #[derive(Debug)]
-pub enum SmartDevice {
+pub enum Device {
     Socket(SmartSocket),
     Therm(SmartTherm),
 }
 
-impl Reporter for SmartDevice {
+impl Reporter for Device {
     fn report(&self) -> String {
         match self {
             Self::Socket(s) => s.report(),
@@ -25,19 +25,19 @@ impl Reporter for SmartDevice {
     }
 }
 
-impl fmt::Display for SmartDevice {
+impl fmt::Display for Device {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.report())
     }
 }
 
-impl From<SmartSocket> for SmartDevice {
+impl From<SmartSocket> for Device {
     fn from(socket: SmartSocket) -> Self {
         Self::Socket(socket)
     }
 }
 
-impl From<SmartTherm> for SmartDevice {
+impl From<SmartTherm> for Device {
     fn from(therm: SmartTherm) -> Self {
         Self::Therm(therm)
     }
@@ -48,11 +48,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_device_enum() {
-        let mut socket = SmartDevice::Socket(SmartSocket::new(1500.0));
-        let therm = SmartDevice::Therm(SmartTherm::new(22.5));
+    fn device_enum() {
+        let mut socket = Device::Socket(SmartSocket::new(1500.0));
+        let therm = Device::Therm(SmartTherm::new(22.5));
 
-        if let SmartDevice::Socket(s) = &mut socket {
+        if let Device::Socket(s) = &mut socket {
             s.turn_on();
         }
 
@@ -61,9 +61,9 @@ mod tests {
     }
 
     #[test]
-    fn test_device_display() {
-        let socket = SmartDevice::Socket(SmartSocket::new(1500.0));
-        let therm = SmartDevice::Therm(SmartTherm::new(22.5));
+    fn device_display() {
+        let socket = Device::Socket(SmartSocket::new(1500.0));
+        let therm = Device::Therm(SmartTherm::new(22.5));
 
         let output = format!("{}", socket);
         assert!(output.starts_with("Smart Socket"));
@@ -73,15 +73,15 @@ mod tests {
     }
 
     #[test]
-    fn test_device_from() {
+    fn device_from() {
         let socket = SmartSocket::new(1500.0);
         let therm = SmartTherm::new(22.5);
 
-        let socket_device: SmartDevice = socket.into();
-        let therm_device: SmartDevice = therm.into();
+        let socket_device: Device = socket.into();
+        let therm_device: Device = therm.into();
 
-        assert!(matches!(socket_device, SmartDevice::Socket(_)));
-        assert!(matches!(therm_device, SmartDevice::Therm(_)));
+        assert!(matches!(socket_device, Device::Socket(_)));
+        assert!(matches!(therm_device, Device::Therm(_)));
 
         assert!(socket_device.report().contains("1500.0W"));
         assert!(therm_device.report().contains("22.5°C"));

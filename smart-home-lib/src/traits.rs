@@ -1,9 +1,7 @@
 //! Общие трейты, используемые в библиотеке
 
-use std::fmt;
-
 /// Трейт для типов, которые могут формировать отчет о состоянии
-pub trait Reporter: fmt::Display {
+pub trait Reporter {
     /// Формирует отчет о состоянии объекта
     fn report(&self) -> String;
 }

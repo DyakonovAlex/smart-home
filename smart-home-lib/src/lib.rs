@@ -1,17 +1,28 @@
 //! # Smart Home Library
 
-pub mod device;
+pub mod controllers;
+pub mod devices;
+pub mod emulators;
 pub mod house;
+pub mod protocol;
 pub mod room;
 pub mod traits;
+pub mod units;
 
 pub mod prelude {
     pub use super::{
-        device::{SmartDevice, SmartSocket, SmartTherm},
-        house,
-        house::SmartHouse,
-        room,
+        controllers::{
+            DeviceController, SocketController, SocketError, SubscriptionHandle, ThermController,
+            ThermError,
+        },
+        devices::{Device, SmartSocket, SmartTherm},
+        emulators::{EmulationScenario, SocketEmulator, ThermEmulator},
+        house, // макрос
+        house::{SmartHouse, SmartHouseError},
+        protocol::{SocketCommand, SocketData, SocketResponse, ThermData, send_command},
+        room, // макрос
         room::Room,
         traits::Reporter,
+        units::{Celsius, Watts},
     };
 }

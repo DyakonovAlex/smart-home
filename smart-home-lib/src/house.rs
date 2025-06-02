@@ -1,11 +1,12 @@
 //! Модуль для работы с умным домом
 
-use crate::device::SmartDevice;
+use crate::controllers::DeviceController;
+use crate::devices::Device;
 use crate::room::Room;
 use crate::traits::Reporter;
 use std::collections::HashMap;
-use std::error::Error;
 use std::fmt;
+use thiserror::Error;
 
 /// Макрос для упрощенного создания умного дома с комнатами
 #[macro_export]
@@ -20,29 +21,20 @@ macro_rules! house {
 }
 
 /// Ошибки, возникающие при работе с умным домом
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum SmartHouseError {
-    /// Комната не найдена
+    #[error("Room not found: '{0}'")]
     RoomNotFound(String),
-    /// Устройство не найдено
+
+    #[error("Device '{1}' not found in room '{0}'")]
     DeviceNotFound(String, String),
 }
 
-impl fmt::Display for SmartHouseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::RoomNotFound(room) => write!(f, "Room not found: '{}'", room),
-            Self::DeviceNotFound(room, device) => {
-                write!(f, "Device '{}' not found in room '{}'", device, room)
-            }
-        }
-    }
-}
-
-impl Error for SmartHouseError {}
+/// Результат выполнения операции
+pub type SmartHouseResult<T> = Result<T, SmartHouseError>;
 
 /// Умный дом, содержащий список комнат
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct SmartHouse {
     rooms: HashMap<String, Room>,
 }
@@ -54,12 +46,12 @@ impl SmartHouse {
     }
 
     /// Возвращает неизменяемую ссылку на комнату по индексу
-    pub fn get_room(&self, key: &str) -> Option<&Room> {
+    pub fn room(&self, key: &str) -> Option<&Room> {
         self.rooms.get(key)
     }
 
     /// Возвращает изменяемую ссылку на комнату по индексу
-    pub fn get_room_mut(&mut self, key: &str) -> Option<&mut Room> {
+    pub fn room_mut(&mut self, key: &str) -> Option<&mut Room> {
         self.rooms.get_mut(key)
     }
 
@@ -74,32 +66,58 @@ impl SmartHouse {
     }
 
     /// Получает прямую ссылку на устройство по имени комнаты и устройства
-    pub fn get_device(
-        &self,
-        room_key: &str,
-        device_key: &str,
-    ) -> Result<&SmartDevice, SmartHouseError> {
-        self.get_room(room_key)
+    pub fn device(&self, room_key: &str, device_key: &str) -> SmartHouseResult<&Device> {
+        self.room(room_key)
             .ok_or(SmartHouseError::RoomNotFound(room_key.to_string()))?
-            .get_device(device_key)
+            .device(device_key)
             .ok_or(SmartHouseError::DeviceNotFound(
                 room_key.to_string(),
                 device_key.to_string(),
             ))
     }
 
+    /// Получает прямую ссылку на контроллер по имени комнаты и контроллера
+    pub fn controller(
+        &self,
+        room_key: &str,
+        controller_key: &str,
+    ) -> SmartHouseResult<&DeviceController> {
+        self.room(room_key)
+            .ok_or(SmartHouseError::RoomNotFound(room_key.to_string()))?
+            .controller(controller_key)
+            .ok_or(SmartHouseError::DeviceNotFound(
+                room_key.to_string(),
+                controller_key.to_string(),
+            ))
+    }
+
     /// Получает прямую изменяяемую ссылку на устройство по имени комнаты и устройства
-    pub fn get_device_mut(
+    pub fn device_mut(
         &mut self,
         room_key: &str,
         device_key: &str,
-    ) -> Result<&mut SmartDevice, SmartHouseError> {
-        self.get_room_mut(room_key)
+    ) -> SmartHouseResult<&mut Device> {
+        self.room_mut(room_key)
             .ok_or(SmartHouseError::RoomNotFound(room_key.to_string()))?
-            .get_device_mut(device_key)
+            .device_mut(device_key)
             .ok_or(SmartHouseError::DeviceNotFound(
                 room_key.to_string(),
                 device_key.to_string(),
+            ))
+    }
+
+    /// Получает прямую изменяяемую ссылку на контроллер по имени комнаты и контроллера
+    pub fn controller_mut(
+        &mut self,
+        room_key: &str,
+        controller_key: &str,
+    ) -> SmartHouseResult<&mut DeviceController> {
+        self.room_mut(room_key)
+            .ok_or(SmartHouseError::RoomNotFound(room_key.to_string()))?
+            .controller_mut(controller_key)
+            .ok_or(SmartHouseError::DeviceNotFound(
+                room_key.to_string(),
+                controller_key.to_string(),
             ))
     }
 
@@ -140,7 +158,7 @@ impl fmt::Display for SmartHouse {
 
 #[cfg(test)]
 mod tests {
-    use crate::device::{SmartDevice, SmartSocket, SmartTherm};
+    use crate::devices::{Device, SmartSocket, SmartTherm};
     use crate::room;
 
     use super::*;
@@ -149,68 +167,68 @@ mod tests {
         crate::house![
             (
                 "kitchen",
-                room![("therm", SmartDevice::Therm(SmartTherm::new(22.5)))]
+                room![("therm", Device::Therm(SmartTherm::new(22.5)))]
             ),
             (
                 "living_room",
-                room![("socket", SmartDevice::Socket(SmartSocket::new(1500.0)))]
+                room![("socket", Device::Socket(SmartSocket::new(1500.0)))]
             )
         ]
     }
 
     #[test]
-    fn test_room_access() {
+    fn room_access() {
         let mut house = test_house();
 
-        let kitchen = house.get_room("kitchen").unwrap();
+        let kitchen = house.room("kitchen").unwrap();
         assert_eq!(kitchen.devices_count(), 1);
 
-        if let Ok(SmartDevice::Socket(s)) = house.get_device_mut("living_room", "socket") {
+        if let Ok(Device::Socket(s)) = house.device_mut("living_room", "socket") {
             s.turn_on();
             assert!(s.is_active());
         }
 
         // Проверяем доступ к несуществующей комнате
-        assert!(house.get_room("not_exists").is_none());
+        assert!(house.room("not_exists").is_none());
     }
 
     #[test]
-    fn test_direct_device_access() {
+    fn direct_device_access() {
         let mut house = test_house();
 
         // Успешный доступ к устройству
-        let result = house.get_device("kitchen", "therm");
+        let result = house.device("kitchen", "therm");
         assert!(result.is_ok());
-        assert!(matches!(result.unwrap(), SmartDevice::Therm(_)));
+        assert!(matches!(result.unwrap(), Device::Therm(_)));
 
         // Ошибка при доступе к несуществующей комнате
-        let error = house.get_device("bathroom", "therm").unwrap_err();
+        let error = house.device("bathroom", "therm").unwrap_err();
         assert!(matches!(error, SmartHouseError::RoomNotFound(_)));
 
         // Ошибка при доступе к несуществующему устройству
-        let error = house.get_device("kitchen", "socket").unwrap_err();
+        let error = house.device("kitchen", "socket").unwrap_err();
         assert!(matches!(error, SmartHouseError::DeviceNotFound(_, _)));
 
         // Изменение устройства через прямой доступ
-        if let Ok(SmartDevice::Socket(s)) = house.get_device_mut("living_room", "socket") {
+        if let Ok(Device::Socket(s)) = house.device_mut("living_room", "socket") {
             s.turn_on();
             assert!(s.is_active());
         }
     }
 
     #[test]
-    fn test_add_remove_room() {
+    fn add_remove_room() {
         let mut house = SmartHouse::default();
 
         // Добавляем комнату
         house.add_room(
             "bedroom",
-            room![("therm", SmartDevice::Therm(SmartTherm::new(20.0)))],
+            room![("therm", Device::Therm(SmartTherm::new(20.0)))],
         );
         assert_eq!(house.rooms_count(), 1);
 
         // Проверяем что комната добавлена
-        assert!(house.get_room("bedroom").is_some());
+        assert!(house.room("bedroom").is_some());
 
         // Удаляем комнату
         let removed = house.remove_room("bedroom");
@@ -218,14 +236,14 @@ mod tests {
         assert_eq!(house.rooms_count(), 0);
 
         // Проверяем что комната удалена
-        assert!(house.get_room("bedroom").is_none());
+        assert!(house.room("bedroom").is_none());
     }
 
     #[test]
-    fn test_report_lines() {
+    fn report_lines() {
         let mut house = test_house();
 
-        if let Ok(SmartDevice::Socket(s)) = house.get_device_mut("living_room", "socket") {
+        if let Ok(Device::Socket(s)) = house.device_mut("living_room", "socket") {
             s.turn_on();
         }
 
@@ -247,10 +265,10 @@ mod tests {
     }
 
     #[test]
-    fn test_report() {
+    fn report() {
         let mut house = test_house();
 
-        if let Ok(SmartDevice::Socket(s)) = house.get_device_mut("living_room", "socket") {
+        if let Ok(Device::Socket(s)) = house.device_mut("living_room", "socket") {
             s.turn_on();
         }
 
@@ -267,7 +285,7 @@ mod tests {
     }
 
     #[test]
-    fn test_display() {
+    fn display() {
         let house = test_house();
         let display_output = format!("{}", house);
 
@@ -279,26 +297,26 @@ mod tests {
     }
 
     #[test]
-    fn test_rooms_count() {
+    fn rooms_count() {
         let house = test_house();
         assert_eq!(house.rooms_count(), 2);
     }
 
     #[test]
-    fn test_macro() {
+    fn macros() {
         let house = crate::house![
             (
                 "room1",
-                room![("socket1", SmartDevice::Socket(SmartSocket::new(1000.0)))]
+                room![("socket1", Device::Socket(SmartSocket::new(1000.0)))]
             ),
             (
                 "room2",
-                room![("therm1", SmartDevice::Therm(SmartTherm::new(18.0)))]
+                room![("therm1", Device::Therm(SmartTherm::new(18.0)))]
             ),
         ];
 
         assert_eq!(house.rooms_count(), 2);
-        assert!(house.get_room("room1").is_some());
-        assert!(house.get_room("room2").is_some());
+        assert!(house.room("room1").is_some());
+        assert!(house.room("room2").is_some());
     }
 }
